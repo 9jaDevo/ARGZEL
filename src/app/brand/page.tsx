@@ -15,7 +15,7 @@ export default function BrandPage() {
         <Brand />
         <Link href="/">Explore the app ↗</Link>
       </header>
-      <span className="eyebrow">IDENTITY STUDY 01 · QUIET PRECISION</span>
+      <span className="eyebrow">ARGZEL IDENTITY · QUIET PRECISION</span>
       <h1>
         A little less
         <br />
@@ -90,6 +90,10 @@ export default function BrandPage() {
         <Link href="/brand/argzel-mark.svg">Mark SVG ↗</Link>
         <Link href="/brand/argzel-wordmark.svg">Wordmark SVG ↗</Link>
         <Link href="/brand/argzel-icon.svg">App icon SVG ↗</Link>
+        <Link href="/brand/argzel-icon-1024.png">App icon PNG ↗</Link>
+        <Link href="/brand/argzel-wordmark-reversed.svg">
+          Reversed wordmark SVG ↗
+        </Link>
       </footer>
     </main>
   );

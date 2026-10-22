@@ -8,7 +8,7 @@ A little less on your mind. The product promise remains **Speak it. Confirm it. 
 
 The mark is a deliberately cut geometric A: two ascending stems and an offset diagonal bridge. It suggests structure and forward movement without using a microphone, robot, brain, circuit, or sparkle as the brand. The microphone is reserved for the action itself. The compact silhouette works in one color at app-icon sizes.
 
-Assets: `/brand/argzel-mark.svg`, `/brand/argzel-wordmark.svg`, `/brand/argzel-icon.svg`. The wordmark uses editable system text; outline its letters before final commercial artwork delivery. This is an original concept direction, not a trademark clearance.
+Final assets: `/brand/argzel-mark.svg`, `/brand/argzel-wordmark.svg`, `/brand/argzel-wordmark-reversed.svg`, `/brand/argzel-icon.svg`, plus a 1024px icon PNG and 180px Apple touch icon. The wordmark uses original vector letter outlines with no font dependency. Interface artwork shares `src/lib/brand.ts`. This is original artwork, not a trademark clearance.
 
 Use graphite on ivory or ivory on graphite. Keep one mark-width of clear space. Do not rotate the production logo, add gradients to it, stretch it, or combine it with decorative AI symbols. The onboarding illustration may rotate the surrounding icon tile as a product visual. Minimum mark size: 24px; app tile: 48px. At smaller favicon sizes use the dedicated icon and inspect rasterization.
 
@@ -49,7 +49,7 @@ Dashboard sample dates are explicitly anchored to October 21, 2026. They are fix
 
 ## Integration boundaries
 
-Replace fixture data through a typed service layer once the backend contract exists. The `Reminder` UI type is a view model, not the final database schema. Backend work must enforce ownership, timezone conversion, ambiguity handling, validation, persistence, and email scheduling. Never connect real scheduling to these frontend preview timers. Auth submit intentionally reports unavailable; demo access is separate. Recording never asks for microphone access or claims real transcription. Processing advances only when the user reviews the sample. Settings show local preference controls; they do not configure a delivery provider.
+Replace fixture data through a typed service layer once the backend contract exists. The `Reminder` UI type is a view model, not the final database schema. Backend work must enforce ownership, timezone conversion, ambiguity handling, validation, persistence, and email scheduling. Never connect real scheduling to these frontend preview timers. Auth submit intentionally reports unavailable; demo access is separate. Recording never asks for microphone access or claims real transcription. Processing advances when the mock adapter completes its transcription and parsing stages. Settings show local preference controls; they do not configure a delivery provider.
 
 The visual foundation does not establish production readiness. Real-device Safari testing, final contrast checks, verification of the implemented dialog keyboard loop, connected service failures, and live provider acceptance belong to later integration QA.
 
@@ -60,3 +60,11 @@ The visual foundation does not establish production readiness. Real-device Safar
 Composition now uses dedicated `Dashboard`, `AuthScreen`, `Onboarding`, `SettingsScreen`, `PreferenceToggle`, `MobileNavigation`, and `EmptyState` components. Shared input hints are connected through `aria-describedby`; password reveal is a labeled toggle. Active navigation exposes `aria-current`. A keyboard skip link targets the main region, and screen/slide changes move focus to their heading. Onboarding has three distinct product illustrations, direct step controls, Back, Skip and Continue/Get started. Motion respects reduced-motion preferences.
 
 Keep all new screen polish in this experience layer or its reusable components; avoid duplicating ad hoc styles inside individual screen branches. Demo preferences and reminders still live in memory, and onboarding completion stays on the current device. No backend services were connected in this refinement.
+
+## Final identity and interface refinement — October 22
+
+The classic geometric A is the finalized logo direction. Its outline wordmark shares the UI artwork and has no font-service dependency. The app tile uses graphite and ivory with optical centering; reversed wordmark, SVG, 1024px PNG and Apple touch exports are available from `/brand`. Use monochrome artwork with the established clear space; do not substitute microphone or AI symbols for the brand.
+
+`final-polish.css` adds the final shared visual layer: 25–29px reminder titles, readable 12–15px metadata, consistent repeat labels, 320px date/time stacking, long-word wrapping, contextual empty-state paper illustrations and touch-safe controls. The delete dialog isolates the background from focus and restores focus when cancelled. Existing onboarding, authentication stubs, dashboard, settings and voice-flow contracts remain intact.
+
+Capture instructions and evidence are maintained in `docs/DEMO_CAPTURE.md`. Browser emulation and visual polish do not establish live authentication, microphone capture, provider delivery or physical-device launch acceptance.

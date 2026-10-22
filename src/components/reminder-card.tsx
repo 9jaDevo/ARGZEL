@@ -24,6 +24,11 @@ export function ReminderRow({
       </span>
       <span className="reminder-copy">
         <strong>{r.title}</strong>
+        {r.status !== "scheduled" && (
+          <small className={`reminder-status status-${r.status}`}>
+            {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+          </small>
+        )}
         <span>
           {displayDate(r.date)} <b>·</b> {displayTime(r.time)}
           {r.recurrence !== "none" && <Repeat2 size={12} />}
@@ -39,9 +44,9 @@ export function ReminderSummary({ reminder: r }: { reminder: Reminder }) {
     <Card className="summary-card">
       <div className="summary-heading">
         <span className="eyebrow">YOUR REMINDER</span>
-        <span className="tag">
+        <span className={`tag status-${r.status}`}>
           <span />
-          {r.status === "completed" ? "Completed" : "Scheduled"}
+          {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
         </span>
       </div>
       <h2>{r.title}</h2>
@@ -62,7 +67,13 @@ export function ReminderSummary({ reminder: r }: { reminder: Reminder }) {
         <Repeat2 size={17} />
         <span>Repeat</span>
         <strong>
-          {r.recurrence === "none" ? "Does not repeat" : r.recurrence}
+          {r.recurrence === "none"
+            ? "Does not repeat"
+            : r.recurrence === "daily"
+              ? "Every day"
+              : r.recurrence === "weekly"
+                ? "Every week"
+                : "Every month"}
         </strong>
       </div>
       <div className="detail-line">

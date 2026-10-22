@@ -58,6 +58,7 @@ export interface VoiceService {
       signal: AbortSignal;
       reminderId?: string;
       status?: ApiReminder["status"];
+      scheduleUnchanged?: boolean;
     },
   ): Promise<ApiReminder>;
 }
@@ -73,7 +74,11 @@ export function draftFromParse(result: ParseResult): VoiceDraft {
     confidence: result.confidence,
   };
 }
-export function draftError(draft: VoiceDraft, now = Date.now()): string | null {
+export function draftError(
+  draft: VoiceDraft,
+  now = Date.now(),
+  allowPast = false,
+): string | null {
   if (!draft.title.trim() || draft.title.trim().length > 200)
     return "Give your reminder a title of 1–200 characters.";
   if (draft.notes.length > 1000)
@@ -87,12 +92,15 @@ export function draftError(draft: VoiceDraft, now = Date.now()): string | null {
   const roundTrip = utcToZoned(instant, draft.timezone);
   if (roundTrip.date !== draft.date || roundTrip.time !== draft.time)
     return "That time doesn’t exist because the clocks change. Choose another time.";
-  if (instant.getTime() <= now)
+  if (!allowPast && instant.getTime() <= now)
     return "That time has passed. Choose a future date and time.";
   return null;
 }
-export function createInput(draft: VoiceDraft): CreateReminderInput {
-  const error = draftError(draft);
+export function createInput(
+  draft: VoiceDraft,
+  allowPast = false,
+): CreateReminderInput {
+  const error = draftError(draft, Date.now(), allowPast);
   if (error) throw new VoiceServiceError(error, "INVALID_DRAFT");
   return {
     confirmed: true,
@@ -239,7 +247,7 @@ async function request<T>(
     );
   }
   if (!response.ok) {
-    const error = (body as ApiErrorBody).error;
+    const error = (body as ApiErrorBody | null)?.error;
     throw new VoiceServiceError(
       error?.message ?? "The request could not be completed.",
       error?.code ?? "SERVICE_ERROR",
@@ -257,25 +265,40 @@ export const apiVoiceService: VoiceService = {
       throw new VoiceServiceError("Record a reminder first.", "NO_AUDIO");
     const form = new FormData();
     form.append("audio", audio, "reminder");
-    return (
-      await request<TranscribeResponse>("/api/voice/transcribe", {
+    const response = await request<TranscribeResponse>(
+      "/api/voice/transcribe",
+      {
         method: "POST",
         body: form,
         signal,
-      })
-    ).text;
+      },
+    );
+    if (typeof response?.text !== "string" || !response.text.trim())
+      throw new VoiceServiceError(
+        "No speech was returned. Please record again or type your reminder.",
+        "INVALID_RESPONSE",
+      );
+    return response.text;
   },
   async parse(input, signal) {
-    return (
-      await request<ParseResponse>("/api/voice/parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-        signal,
-      })
-    ).result;
+    const response = await request<ParseResponse>("/api/voice/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal,
+    });
+    if (
+      !response?.result ||
+      typeof response.result.title !== "string" ||
+      typeof response.result.source_text !== "string"
+    )
+      throw new VoiceServiceError(
+        "The service returned an incomplete reminder. Please try again.",
+        "INVALID_RESPONSE",
+      );
+    return response.result;
   },
-  async save(input, { signal, reminderId }) {
+  async save(input, { signal, reminderId, status, scheduleUnchanged }) {
     if (input.confirmed !== true)
       throw new VoiceServiceError(
         "Confirm the reminder before saving.",
@@ -287,9 +310,14 @@ export const apiVoiceService: VoiceService = {
           notes: input.notes,
           timezone: input.timezone,
           recurrence: input.recurrence,
-          ...(input.scheduled_at
-            ? { scheduled_at: input.scheduled_at }
-            : { date: input.date, time: input.time }),
+          ...(status === "completed" || status === "cancelled"
+            ? { status }
+            : {}),
+          ...(scheduleUnchanged
+            ? {}
+            : input.scheduled_at
+              ? { scheduled_at: input.scheduled_at }
+              : { date: input.date, time: input.time }),
         }
       : input;
     const response = await request<ReminderResponse>(

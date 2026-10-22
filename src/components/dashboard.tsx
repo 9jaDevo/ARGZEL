@@ -20,6 +20,12 @@ export function Dashboard({
   onCreate,
   onOpen,
   onViewAll,
+  isDemo = true,
+  name = "Alex",
+  timezone = "Africa/Lagos",
+  loading = false,
+  error = "",
+  onRefresh,
 }: {
   screen: "home" | "reminders";
   title: (text: string) => ReactNode;
@@ -29,18 +35,31 @@ export function Dashboard({
   onCreate: () => void;
   onOpen: (reminder: Reminder) => void;
   onViewAll: () => void;
+  isDemo?: boolean;
+  name?: string;
+  timezone?: string;
+  loading?: boolean;
+  error?: string;
+  onRefresh?: () => void;
 }) {
   const completedCount = items.filter((r) => r.status === "completed").length;
-  const visible = items.filter((r) =>
-    filter === "Completed"
-      ? r.status === "completed"
-      : r.status === "scheduled",
+  const visible = items.filter(
+    (r) =>
+      r.status === (filter === "Upcoming" ? "scheduled" : filter.toLowerCase()),
   );
+  const dayLabel = isDemo
+    ? "WEDNESDAY, OCTOBER 21 · DEMO DAY"
+    : new Intl.DateTimeFormat("en-GB", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        timeZone: timezone,
+      }).format(new Date());
   return (
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">WEDNESDAY, OCTOBER 21 · DEMO DAY</span>
+          <span className="eyebrow">{dayLabel}</span>
           {title(
             screen === "home"
               ? "A little less on your mind."
@@ -48,7 +67,7 @@ export function Dashboard({
           )}
           <p>
             {screen === "home" ? (
-              <>Good afternoon, Alex. Make room for what matters.</>
+              <>Hello, {name.split(" ")[0]}. Make room for what matters.</>
             ) : (
               "Your plans, neatly remembered."
             )}
@@ -103,8 +122,8 @@ export function Dashboard({
         <section className="reminders-panel">
           <div className="section-heading">
             <h2>
-              {filter === "Completed"
-                ? "Completed"
+              {filter !== "Upcoming"
+                ? filter
                 : screen === "home"
                   ? "Coming up"
                   : "My reminders"}{" "}
@@ -119,18 +138,33 @@ export function Dashboard({
             </button>
           </div>
           <div className="tabs" role="group" aria-label="Reminder filter">
-            {["Upcoming", "Completed"].map((t) => (
-              <button
-                key={t}
-                aria-pressed={filter === t}
-                className={filter === t ? "active" : ""}
-                onClick={() => setFilter(t)}
-              >
-                {t}
-              </button>
-            ))}
+            {["Upcoming", "Completed", "Delivered", "Cancelled", "Failed"].map(
+              (t) => (
+                <button
+                  key={t}
+                  aria-pressed={filter === t}
+                  className={filter === t ? "active" : ""}
+                  onClick={() => setFilter(t)}
+                >
+                  {t}
+                </button>
+              ),
+            )}
           </div>
           <Card className="reminder-list">
+            {loading && (
+              <p className="list-status" role="status">
+                Loading your reminders…
+              </p>
+            )}
+            {error && (
+              <div className="list-status" role="alert">
+                <p>{error}</p>
+                <Button variant="secondary" onClick={onRefresh}>
+                  Try again
+                </Button>
+              </div>
+            )}
             {visible.length ? (
               visible.map((r, i) => (
                 <ReminderRow
@@ -140,13 +174,33 @@ export function Dashboard({
                   onOpen={onOpen}
                 />
               ))
-            ) : (
+            ) : !loading && !error ? (
               <EmptyState
                 completed={filter === "Completed"}
+                statusLabel={
+                  !["Upcoming", "Completed"].includes(filter)
+                    ? filter.toLowerCase()
+                    : undefined
+                }
+                hasHistory={completedCount > 0}
                 onCreate={onCreate}
               />
-            )}
+            ) : null}
           </Card>
+          {!isDemo && (
+            <button
+              className="text-button"
+              disabled={loading}
+              onClick={onRefresh}
+            >
+              Refresh reminders
+            </button>
+          )}
+          {!isDemo && items.length === 200 && (
+            <p className="subtle-caption">
+              Showing up to 200 reminders. More may be available.
+            </p>
+          )}
           <div className="subtle-caption">
             <ShieldCheck size={14} /> Always reviewed by you. Only saved when
             you confirm.

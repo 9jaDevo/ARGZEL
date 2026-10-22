@@ -205,6 +205,25 @@ describe("real backend adapter contract (fetch mocked; no network)", () => {
     ).rejects.toMatchObject({ code: "NO_AUDIO" });
     expect(fetch).not.toHaveBeenCalled();
   });
+  it("edits an existing schedule without rearming it, preserving completed status", async () => {
+    const input = createInput(await hostingDraft());
+    const reminder = await service().save(input, { signal: signal() });
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ reminder })));
+    vi.stubGlobal("fetch", fetch);
+    await apiVoiceService.save(input, {
+      signal: signal(),
+      reminderId: "existing",
+      status: "completed",
+      scheduleUnchanged: true,
+    });
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body).toMatchObject({ status: "completed", title: input.title });
+    expect(body).not.toHaveProperty("date");
+    expect(body).not.toHaveProperty("time");
+    expect(body).not.toHaveProperty("scheduled_at");
+  });
   it("does not show success when a save response omits the reminder", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}")));
     await expect(

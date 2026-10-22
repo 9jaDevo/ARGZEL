@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Button, Input } from "./ui";
 import { draftError, type VoiceDraft } from "@/lib/voice-service";
 import type { Recurrence } from "@/types/api";
+import { timezones } from "@/lib/timezones";
 
 export function ReminderEditor({
   draft,
@@ -31,7 +32,12 @@ export function ReminderEditor({
           recurrence: String(fields.get("recurrence") ?? "none") as Recurrence,
           timezone: String(fields.get("timezone") ?? ""),
         };
-        const issue = draftError(reviewed);
+        const unchanged =
+          !!draft.id &&
+          reviewed.date === draft.date &&
+          reviewed.time === draft.time &&
+          reviewed.timezone === draft.timezone;
+        const issue = draftError(reviewed, Date.now(), unchanged);
         if (issue) {
           setError(issue);
           return;
@@ -102,15 +108,7 @@ export function ReminderEditor({
           value={value.timezone}
           onChange={(e) => setValue({ ...value, timezone: e.target.value })}
         >
-          {Array.from(
-            new Set([
-              draft.timezone,
-              "Africa/Lagos",
-              "America/New_York",
-              "Europe/London",
-              "Asia/Dubai",
-            ]),
-          ).map((zone) => (
+          {timezones(draft.timezone).map((zone) => (
             <option key={zone}>{zone}</option>
           ))}
         </select>

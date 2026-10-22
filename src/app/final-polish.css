@@ -1,0 +1,346 @@
+/* Final visual pass: shared artwork, readable details and resilient small-screen layout. */
+.brand > .brand-name {
+  display: inline-flex;
+  align-items: center;
+}
+.brand .brand-letters {
+  width: 122px;
+  height: 22px;
+  overflow: visible;
+}
+.mobile-brand .brand .brand-letters {
+  width: 102px;
+  height: 20px;
+}
+.brand-specimens .brand .brand-letters {
+  width: 176px;
+  height: 29px;
+}
+.screen-details .flow-container {
+  max-width: 490px;
+}
+.summary-card h2 {
+  font-size: 29px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.summary-card > p,
+.source-text p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.detail-grid {
+  padding-block: 25px;
+  margin-block: 27px 9px;
+}
+.detail-grid small {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.detail-grid strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+.detail-grid svg,
+.detail-line svg {
+  color: #687c9d;
+  flex-shrink: 0;
+}
+.detail-line {
+  min-height: 49px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  gap: 9px;
+}
+.detail-line strong {
+  font-size: 13px;
+  color: #35435a;
+  text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  text-transform: none;
+}
+.summary-heading {
+  flex-wrap: wrap;
+}
+.summary-heading .eyebrow {
+  font-size: 10px;
+}
+.source-text {
+  border-left: 2px solid #dce2ed;
+  padding: 4px 0 4px 18px;
+  margin-block: 26px;
+}
+.reminder-copy {
+  min-width: 0;
+}
+.reminder-copy strong,
+.voice-summary h2,
+.voice-summary-notes,
+.voice-original p,
+.delete-modal p {
+  overflow-wrap: anywhere;
+}
+.reminder-row {
+  text-align: left;
+}
+.reminder-row > svg {
+  flex-shrink: 0;
+}
+.reminder-row .reminder-copy strong {
+  line-height: 1.45;
+}
+.empty-state {
+  padding: 38px 22px 34px;
+}
+.empty-state-art {
+  display: block;
+  width: 140px;
+  height: 125px;
+  background: radial-gradient(ellipse, #e8edf8 0, #f6f8fc 60%, transparent 72%);
+  border: 0;
+  border-radius: 50%;
+  margin: 0 auto 20px;
+}
+.empty-paper {
+  position: absolute;
+  width: 70px;
+  height: 88px;
+  border-radius: 12px;
+  border: 1px solid #d6dfed;
+  background: #f3f6fb;
+  left: 35px;
+  top: 17px;
+}
+.empty-paper-back {
+  transform: translate(-10px, -2px) rotate(-12deg);
+}
+.empty-paper-front {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 14px 12px;
+  background: white;
+  transform: rotate(6deg);
+  box-shadow: 0 8px 18px #2638540b;
+}
+.empty-paper-line {
+  display: block;
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: #c9d5e9;
+}
+.empty-paper-line.short {
+  width: 26px;
+}
+.empty-art-seal {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  right: 19px;
+  bottom: 10px;
+  border-radius: 50%;
+  color: #4a6856;
+  background: #edf3ef;
+  border: 3px solid white;
+}
+.empty-state > .eyebrow {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  margin-bottom: 12px;
+}
+.empty-state h3 {
+  color: var(--ink);
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: -0.65px;
+  line-height: 1.25;
+  max-width: 290px;
+  margin: auto;
+}
+.empty-state p {
+  font-size: 14px;
+  line-height: 1.7;
+  margin-block: 14px 23px;
+}
+.empty-state .button {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.4;
+}
+.empty-completed .empty-state-art {
+  background: radial-gradient(ellipse, #e9f0e9 0, #f7faf7 60%, transparent 72%);
+  color: #54725b;
+}
+.empty-completed .empty-paper-line {
+  background: #ccdace;
+}
+.entry-mode .main-content {
+  padding-bottom: max(32px, env(safe-area-inset-bottom));
+}
+.fine-print {
+  line-height: 1.6;
+}
+.auth-assurance {
+  align-items: flex-start;
+}
+.auth-assurance > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.delete-modal {
+  max-height: calc(100svh - 40px);
+  overflow: auto;
+}
+.notice {
+  line-height: 1.6;
+}
+.brand-board a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 5px;
+}
+@media (hover: none) {
+  .button.primary:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+@media (max-width: 800px) {
+  .screen-details .flow-container > .eyebrow {
+    margin-top: 8px;
+  }
+  .screen-details .lead {
+    margin-bottom: 28px;
+  }
+  .summary-card h2 {
+    font-size: 28px;
+  }
+  .screen-details .button-row .button {
+    flex: 1;
+  }
+  .onboarding .sample-note {
+    max-width: calc(100% - 12px);
+  }
+  .brand-specimens .brand .brand-letters {
+    width: 145px;
+    height: 25px;
+  }
+}
+@media (max-width: 370px) {
+  .summary-card h2 {
+    font-size: 25px;
+  }
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 21px;
+  }
+  .detail-grid > span {
+    grid-template-columns: 22px 1fr auto;
+    align-items: center;
+  }
+  .detail-grid svg {
+    grid-row: auto;
+  }
+  .detail-line {
+    flex-wrap: wrap;
+  }
+  .detail-line strong {
+    max-width: 62%;
+  }
+  .empty-state {
+    padding-inline: 16px;
+  }
+  .empty-state h3 {
+    font-size: 22px;
+  }
+  .empty-state .button {
+    padding-inline: 14px;
+    font-size: 13px;
+  }
+}
+.auth-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.list-status {
+  padding: 26px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.list-status .button {
+  margin-top: 15px;
+}
+.tabs {
+  overflow-x: auto;
+  gap: 16px;
+}
+.tabs button {
+  flex-shrink: 0;
+}
+.reminder-status {
+  display: block;
+  font-size: 11px;
+  margin-top: 5px;
+  color: #526075;
+  text-transform: capitalize;
+}
+.status-failed {
+  color: #983f36;
+  background-color: #fff2ef;
+}
+.status-cancelled {
+  color: #59677a;
+  background-color: #edf0f4;
+}
+.capture-alternative {
+  max-width: 490px;
+  margin: 18px auto 0;
+}
+.typed-reminder {
+  margin-top: 22px;
+}
+.field textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 110px;
+  padding: 14px;
+  border: 1px solid #7b879b;
+  border-radius: 10px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+.field textarea:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+.clarification-answer {
+  margin-top: 16px;
+}
+.voice-clarification .button {
+  margin: 8px 8px 0 0;
+}
+.profile strong,
+.settings-profile h2 {
+  overflow-wrap: anywhere;
+}
+.dashboard-grid > *,
+.reminders-panel {
+  min-width: 0;
+}
+.tabs {
+  max-width: 100%;
+}
+.main-wrap,
+.voice-clarification > div {
+  min-width: 0;
+}

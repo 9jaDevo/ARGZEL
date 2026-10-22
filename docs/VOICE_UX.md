@@ -1,5 +1,7 @@
 # Voice experience — 22 October 2026
 
+**Later frontend audit update:** Account-mode API wiring and browser capture are now implemented locally; explicit demo mode remains available. The dated phase notes below describe their original evidence. Current behavior and fixture-versus-provider acceptance are recorded in [FRONTEND_AUDIT.md](FRONTEND_AUDIT.md).
+
 This phase implements the frontend recording, listening, processing, review, edit and success experience from the master spec. The visible application deliberately uses the mock adapter. Its microphone is off, reminders live only in session memory, and no email is sent.
 
 ## Components and state

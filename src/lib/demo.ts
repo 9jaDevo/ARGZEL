@@ -1,11 +1,12 @@
+import type { Recurrence, ReminderStatus } from "@/types/api";
 export type Reminder = {
   id: string;
   title: string;
   notes: string;
   date: string;
   time: string;
-  recurrence: string;
-  status: "scheduled" | "completed";
+  recurrence: Recurrence;
+  status: ReminderStatus;
   timezone: string;
   source: string;
 };

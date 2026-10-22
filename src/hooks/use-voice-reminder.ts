@@ -38,6 +38,7 @@ export function useVoiceReminder({
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState("");
   const [uncertain, setUncertain] = useState(false);
+  const [transcript, setTranscript] = useState("");
   const [saved, setSaved] = useState<ApiReminder | null>(null);
   const operation = useRef<AbortController | null>(null);
   const busy = useRef(false);
@@ -62,6 +63,7 @@ export function useVoiceReminder({
     stop();
     confirmed.current = false;
     setDraft(null);
+    setTranscript("");
     setResult(null);
     setError("");
     setUncertain(false);
@@ -82,6 +84,7 @@ export function useVoiceReminder({
         controller.signal,
       );
       if (controller.signal.aborted) return;
+      setTranscript(text);
       setStage("parsing");
       const parsed = await service.parse({ text, timezone }, controller.signal);
       if (controller.signal.aborted) return;
@@ -110,9 +113,56 @@ export function useVoiceReminder({
     setResult(null);
   }
   function chooseClarification(value: ParseResult) {
-    if (!value.needs_clarification) {
-      setResult(value);
-      setDraft(draftFromParse(value));
+    setResult(value);
+    setDraft(draftFromParse(value));
+    setError("");
+  }
+  async function parseText(text: string, answer?: string) {
+    if (busy.current || uncertain) return;
+    if (!text.trim() || text.trim().length > 500) {
+      setError("Enter a reminder of 1–500 characters.");
+      return;
+    }
+    busy.current = true;
+    const controller = new AbortController();
+    operation.current = controller;
+    setError("");
+    setStage("parsing");
+    setTranscript(text);
+    try {
+      const parsed = await service.parse(
+        {
+          text: text.trim(),
+          timezone,
+          ...(answer && result?.clarification_question
+            ? {
+                clarification: {
+                  question: result.clarification_question,
+                  answer,
+                },
+              }
+            : {}),
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setResult(parsed);
+      setDraft(draftFromParse(parsed));
+      setStage("preview");
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Couldn’t understand that reminder.",
+        );
+        setStage("error");
+      }
+    } finally {
+      if (operation.current === controller) {
+        operation.current = null;
+        busy.current = false;
+      }
     }
   }
   async function confirm(): Promise<ApiReminder | null> {
@@ -124,7 +174,13 @@ export function useVoiceReminder({
       uncertain
     )
       return null;
-    const validation = draftError(draft);
+    const scheduleUnchanged =
+      !!initial?.id &&
+      initial.id === draft.id &&
+      initial.date === draft.date &&
+      initial.time === draft.time &&
+      initial.timezone === draft.timezone;
+    const validation = draftError(draft, Date.now(), scheduleUnchanged);
     if (validation) {
       setError(validation);
       return null;
@@ -139,11 +195,15 @@ export function useVoiceReminder({
     setError("");
     setStage("saving");
     try {
-      const reminder = await service.save(createInput(draft), {
-        signal: controller.signal,
-        reminderId: draft.id,
-        status: draft.status,
-      });
+      const reminder = await service.save(
+        createInput(draft, scheduleUnchanged),
+        {
+          signal: controller.signal,
+          reminderId: draft.id,
+          status: draft.status,
+          scheduleUnchanged,
+        },
+      );
       if (controller.signal.aborted) return null;
       confirmed.current = true;
       setSaved(reminder);
@@ -179,6 +239,8 @@ export function useVoiceReminder({
     error,
     uncertain,
     saved,
+    transcript,
+    parseText,
     finish,
     retry,
     stop,

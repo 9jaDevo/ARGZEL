@@ -100,6 +100,7 @@ export function ListeningScreen({
   onSample,
   onFinish,
   onCancel,
+  captureState,
 }: {
   elapsed: number;
   paused: boolean;
@@ -108,7 +109,11 @@ export function ListeningScreen({
   onSample: (sample: VoiceSample) => void;
   onFinish: () => void;
   onCancel: () => void;
+  captureState?: "ready" | "requesting" | "recording" | "paused" | "stopped";
 }) {
+  const live = captureState !== undefined;
+  const active =
+    !live || captureState === "recording" || captureState === "paused";
   return (
     <VoiceFrame
       step={1}
@@ -117,14 +122,27 @@ export function ListeningScreen({
       description="Big plans or little things. Say it naturally."
       onCancel={onCancel}
     >
-      <div className={`listening-visual ${paused ? "is-paused" : ""}`}>
+      <div
+        className={`listening-visual ${paused || !active ? "is-paused" : ""}`}
+      >
         <span className="listening-ring ring-outer" />
         <span className="listening-ring ring-inner" />
         <button
           className="listening-mic"
           aria-label={
-            paused ? "Resume listening preview" : "Pause listening preview"
+            live
+              ? captureState === "requesting"
+                ? "Waiting for microphone access"
+                : !active
+                  ? "Start recording"
+                  : paused
+                    ? "Resume recording"
+                    : "Pause recording"
+              : paused
+                ? "Resume listening preview"
+                : "Pause listening preview"
           }
+          disabled={captureState === "requesting"}
           aria-pressed={paused}
           onClick={onPause}
         >
@@ -139,12 +157,24 @@ export function ListeningScreen({
       <div className="listening-meta">
         <span className={`listening-badge ${paused ? "paused" : ""}`}>
           <i />
-          {paused ? "Paused" : "Listening preview"}
+          {live
+            ? captureState === "requesting"
+              ? "Allow microphone access"
+              : captureState === "stopped"
+                ? "Ready to review"
+                : !active
+                  ? "Tap the microphone to begin"
+                  : paused
+                    ? "Paused"
+                    : "Listening"
+            : paused
+              ? "Paused"
+              : "Listening preview"}
         </span>
         <span
           className="recording-clock"
           role="timer"
-          aria-label="Preview elapsed time"
+          aria-label={live ? "Recording elapsed time" : "Preview elapsed time"}
         >
           {Math.floor(elapsed / 60)
             .toString()
@@ -152,36 +182,48 @@ export function ListeningScreen({
           :{(elapsed % 60).toString().padStart(2, "0")}
         </span>
       </div>
-      <Wave active={!paused} />
+      <Wave active={active && !paused} />
       <div className="voice-phrase">
         <span className="eyebrow">TRY SAYING</span>
         <blockquote>“{voiceSamples[sample]}”</blockquote>
-        <div className="voice-examples" role="group" aria-label="Demo example">
-          {(
-            [
-              ["hosting", "Hosting"],
-              ["call", "Call James"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              aria-pressed={sample === id}
-              onClick={() => onSample(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {!live && (
+          <div
+            className="voice-examples"
+            role="group"
+            aria-label="Demo example"
+          >
+            {(
+              [
+                ["hosting", "Hosting"],
+                ["call", "Call James"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                aria-pressed={sample === id}
+                onClick={() => onSample(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       <div className="voice-actions">
-        <Button className="full voice-stop" onClick={onFinish}>
+        <Button
+          className="full voice-stop"
+          disabled={live && !active && captureState !== "stopped"}
+          onClick={onFinish}
+        >
           <Square size={15} fill="currentColor" aria-hidden="true" />
           Finish speaking
           <ArrowRight size={17} aria-hidden="true" />
         </Button>
         <p className="voice-disclosure">
           <ShieldCheck size={14} aria-hidden="true" />
-          Demo preview · Your microphone is off.
+          {live
+            ? "Up to 60 seconds · Audio is sent only when you finish."
+            : "Demo preview · Your microphone is off."}
         </p>
       </div>
     </VoiceFrame>
@@ -190,8 +232,10 @@ export function ListeningScreen({
 export function ProcessingScreen({
   stage,
   onCancel,
+  demo = true,
 }: {
   stage: "transcribing" | "parsing";
+  demo?: boolean;
   onCancel: () => void;
 }) {
   return (
@@ -210,8 +254,12 @@ export function ProcessingScreen({
       <div className="voice-progress" aria-busy="true">
         <p role="status">
           {stage === "transcribing"
-            ? "Preparing the sample transcript…"
-            : "Arranging the sample reminder…"}
+            ? demo
+              ? "Preparing the sample transcript…"
+              : "Transcribing your words…"
+            : demo
+              ? "Arranging the sample reminder…"
+              : "Understanding your reminder…"}
         </p>
         <ol>
           {[
@@ -248,7 +296,7 @@ export function ProcessingScreen({
         </ol>
       </div>
       <p className="voice-disclosure">
-        Demo processing · Nothing is saved at this step.
+        {demo ? "Demo processing · " : ""}Nothing is saved at this step.
       </p>
       <Button className="full" variant="ghost" onClick={onCancel}>
         Cancel
@@ -322,7 +370,15 @@ export function VoiceSummary({
     </Card>
   );
 }
-function ReadBack({ draft, enabled }: { draft: VoiceDraft; enabled: boolean }) {
+function ReadBack({
+  draft,
+  enabled,
+  question,
+}: {
+  draft: VoiceDraft;
+  enabled: boolean;
+  question?: string;
+}) {
   const [speaking, setSpeaking] = useState(false);
   const [notice, setNotice] = useState("");
   useEffect(
@@ -348,7 +404,8 @@ function ReadBack({ draft, enabled }: { draft: VoiceDraft; enabled: boolean }) {
       return;
     }
     const speech = new SpeechSynthesisUtterance(
-      `${draft.title}. ${draft.date ? displayDate(draft.date) : "Date not set"} at ${draft.time ? displayTime(draft.time) : "time not set"}. ${repeatLabel(draft)}. Timezone ${draft.timezone}. Please confirm the details before saving.`,
+      question ||
+        `${draft.title}. ${draft.date ? displayDate(draft.date) : "Date not set"} at ${draft.time ? displayTime(draft.time) : "time not set"}. ${repeatLabel(draft)}. Timezone ${draft.timezone}. Please confirm the details before saving.`,
     );
     speech.lang = "en-GB";
     speech.onend = () => setSpeaking(false);
@@ -401,6 +458,9 @@ export function PreviewScreen({
   onRetry,
   onConfirm,
   onCancel,
+  demo = true,
+  onChoose,
+  onAnswer,
 }: {
   draft: VoiceDraft;
   result: ParseResult | null;
@@ -411,6 +471,9 @@ export function PreviewScreen({
   onEdit: () => void;
   onRetry: () => void;
   onConfirm: () => void;
+  demo?: boolean;
+  onChoose?: (result: ParseResult) => void;
+  onAnswer?: (answer: string) => void;
   onCancel: () => void;
 }) {
   const clarify = !!result?.needs_clarification;
@@ -443,7 +506,34 @@ export function PreviewScreen({
           <CircleHelp size={23} aria-hidden="true" />
           <div>
             <strong>{result?.clarification_question}</strong>
-            <p>Set the missing details below. We won’t guess.</p>
+            <p>Choose an answer or edit the details. We won’t guess.</p>
+            {result?.options.map((option) => (
+              <Button
+                key={option.label}
+                variant="secondary"
+                onClick={() => onChoose?.(option.result)}
+              >
+                {option.label}
+              </Button>
+            ))}
+            {onAnswer && (
+              <form
+                className="clarification-answer"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const fields = new FormData(event.currentTarget);
+                  onAnswer(String(fields.get("answer") ?? ""));
+                }}
+              >
+                <label className="field">
+                  <span>Your answer</span>
+                  <input name="answer" required maxLength={300} />
+                </label>
+                <Button type="submit" variant="secondary">
+                  Use this answer
+                </Button>
+              </form>
+            )}
             <Button variant="secondary" onClick={onEdit}>
               Choose the details
               <ArrowRight size={15} />
@@ -452,7 +542,15 @@ export function PreviewScreen({
         </div>
       )}
       <VoiceSummary draft={draft} />
-      {!saving && <ReadBack draft={draft} enabled={readback} />}
+      {!saving && (
+        <ReadBack
+          draft={draft}
+          enabled={readback}
+          question={
+            clarify ? (result?.clarification_question ?? undefined) : undefined
+          }
+        />
+      )}
       <details className="voice-source">
         <summary>Your original words</summary>
         <p>“{draft.source_text}”</p>
@@ -488,7 +586,9 @@ export function PreviewScreen({
           </div>
         )}
         <p className="voice-disclosure">
-          Demo session only · No email will be sent.
+          {demo
+            ? "Demo session only · No email will be sent."
+            : "Only Confirm saves this reminder to your account."}
         </p>
       </div>
     </VoiceFrame>
@@ -499,8 +599,10 @@ export function SuccessScreen({
   onHome,
   onAnother,
   onDetails,
+  demo = true,
 }: {
   saved: ApiReminder;
+  demo?: boolean;
   onHome: () => void;
   onAnother: () => void;
   onDetails: () => void;
@@ -524,7 +626,7 @@ export function SuccessScreen({
       </div>
       <p className="voice-saved-label" role="status">
         <Check size={14} aria-hidden="true" />
-        Added to this demo session
+        {demo ? "Added to this demo session" : "Saved to your account"}
       </p>
       <VoiceSummary draft={draft} saved />
       <button className="text-button voice-details-link" onClick={onDetails}>
@@ -540,7 +642,13 @@ export function SuccessScreen({
           <Plus size={17} />
           Create another reminder
         </Button>
-        <p className="voice-disclosure">No email is sent in this preview.</p>
+        <p className="voice-disclosure">
+          {demo
+            ? "No email is sent in this preview."
+            : saved.status === "scheduled"
+              ? "Email delivery is scheduled for the time shown above."
+              : `Reminder status: ${saved.status}.`}
+        </p>
       </div>
     </VoiceFrame>
   );

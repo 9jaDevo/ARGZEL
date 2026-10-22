@@ -1,8 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
-  ArrowRight,
   ArrowLeft,
   Home,
   CalendarDays,
@@ -18,8 +17,13 @@ import { Brand, Button, Wave } from "./ui";
 import { ReminderSummary } from "./reminder-card";
 import { Onboarding } from "./onboarding";
 import { VoiceFlow } from "./voice-flow";
-import type { VoiceDraft } from "@/lib/voice-service";
-import type { ApiReminder, Recurrence } from "@/types/api";
+import {
+  apiVoiceService,
+  mockVoiceService,
+  type VoiceDraft,
+} from "@/lib/voice-service";
+import { appApi, ClientError, initials, toReminder } from "@/lib/app-api";
+import type { ApiReminder, ApiUser, Recurrence } from "@/types/api";
 import { Dashboard } from "./dashboard";
 import { AuthScreen } from "./auth-screen";
 import { SettingsScreen } from "./settings-screen";
@@ -38,8 +42,16 @@ type Screen =
 export default function Experience() {
   const [screen, setScreen] = useState<Screen>("splash");
   const [slide, setSlide] = useState(0);
-  const [items, setItems] = useState<Reminder[]>(demoReminders);
+  const [items, setItems] = useState<Reminder[]>([]);
   const [selected, setSelected] = useState<Reminder>(demoReminders[0]);
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [isDemo, setDemo] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [listError, setListError] = useState("");
+  const [working, setWorking] = useState(false);
+  const mutation = useRef(false);
+  const epoch = useRef(0);
+  const listRequest = useRef<AbortController | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [filter, setFilter] = useState("Upcoming");
   const [emailEnabled, setEmailEnabled] = useState(true);
@@ -51,55 +63,203 @@ export default function Experience() {
     initial?: VoiceDraft;
   } | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!deleting) return;
+    const trigger = deleteTrigger.current;
+    return () => {
+      if (trigger?.isConnected) trigger.focus();
+    };
+  }, [deleting]);
   const go = (s: Screen) => {
     setScreen(s);
     setNotice("");
 
     setDeleting(false);
   };
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        setScreen(
-          localStorage.getItem("argzel-onboarded") === "yes"
-            ? "home"
-            : "onboarding",
+  const loadReminders = useCallback(async () => {
+    const current = epoch.current;
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
+    setLoading(true);
+    setListError("");
+    try {
+      const { reminders } = await appApi.reminders(controller.signal);
+      if (!controller.signal.aborted && current === epoch.current)
+        setItems(reminders.map(toReminder));
+    } catch (cause) {
+      if (controller.signal.aborted || current !== epoch.current) return;
+      if (cause instanceof ClientError && cause.status === 401) {
+        epoch.current++;
+        setItems([]);
+        setUser(null);
+        setSelected(demoReminders[0]);
+        setScreen("signin");
+        setNotice("Your session ended. Please sign in again.");
+      } else
+        setListError(
+          "Couldn’t load your reminders. Your existing reminders have not been changed.",
         );
-      } catch {
-        setScreen("onboarding");
-      }
-    }, 1200);
-    return () => clearTimeout(timer);
+    } finally {
+      if (current === epoch.current && !controller.signal.aborted)
+        setLoading(false);
+    }
   }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    let seen = false;
+    try {
+      seen = localStorage.getItem("argzel-onboarded") === "yes";
+    } catch {}
+    void appApi
+      .me(controller.signal)
+      .then(({ user: profile }) => {
+        if (controller.signal.aborted) return;
+        setUser(profile);
+        setTimezone(profile.timezone);
+        setScreen(profile.onboarding_completed ? "home" : "onboarding");
+        void loadReminders();
+      })
+      .catch((cause) => {
+        if (controller.signal.aborted) return;
+        setScreen(seen ? "signin" : "onboarding");
+        if (!(cause instanceof ClientError && cause.status === 401))
+          setNotice(
+            "Couldn’t restore your session. You can sign in again or explore the demo.",
+          );
+      });
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        try {
+          setReadback(localStorage.getItem("argzel-readback") !== "off");
+        } catch {}
+      }
+    });
+    return () => {
+      controller.abort();
+      listRequest.current?.abort();
+    };
+  }, [loadReminders]);
   useEffect(() => {
     titleRef.current?.focus({ preventScroll: true });
     window.scrollTo(0, 0);
     window.speechSynthesis?.cancel();
   }, [screen, slide]);
-  const finishOnboarding = () => {
+  const finishOnboarding = async () => {
     try {
       localStorage.setItem("argzel-onboarded", "yes");
-    } catch {
-      // Storage may be disabled; the walkthrough still completes for this visit.
+    } catch {}
+    if (user && !isDemo) {
+      try {
+        const result = await appApi.profile({ onboarding_completed: true });
+        setUser(result.user);
+        go("home");
+      } catch {
+        setNotice("Couldn’t save your welcome progress. Please try again.");
+      }
+    } else go(isDemo ? "home" : "signin");
+  };
+  const authenticated = async (profile: ApiUser) => {
+    epoch.current++;
+    listRequest.current?.abort();
+    setDemo(false);
+    setItems([]);
+    setSelected(demoReminders[0]);
+    setUser(profile);
+    setTimezone(profile.timezone);
+    setFilter("Upcoming");
+    let seen = false;
+    try {
+      seen = localStorage.getItem("argzel-onboarded") === "yes";
+    } catch {}
+    if (seen && !profile.onboarding_completed) {
+      try {
+        const result = await appApi.profile({ onboarding_completed: true });
+        setUser(result.user);
+      } catch {
+        setSlide(0);
+        go("onboarding");
+        return;
+      }
     }
-    go("signin");
+    go(seen || profile.onboarding_completed ? "home" : "onboarding");
+    void loadReminders();
+  };
+  const enterDemo = () => {
+    epoch.current++;
+    listRequest.current?.abort();
+    setUser(null);
+    setDemo(true);
+    setItems(demoReminders);
+    setSelected(demoReminders[0]);
+    setTimezone("Africa/Lagos");
+    setEmailEnabled(true);
+    setFilter("Upcoming");
+    setLoading(false);
+    setListError("");
+    go("home");
+  };
+  const leave = async () => {
+    if (mutation.current) return;
+    mutation.current = true;
+    setWorking(true);
+    try {
+      if (!isDemo) await appApi.logout();
+      epoch.current++;
+      listRequest.current?.abort();
+      setUser(null);
+      setDemo(false);
+      setItems([]);
+      setSelected(demoReminders[0]);
+      setVoiceRequest(null);
+      setLoading(false);
+      setListError("");
+      go("signin");
+    } catch {
+      setNotice(
+        "Couldn’t sign out. Please try again; your session may still be active.",
+      );
+    } finally {
+      mutation.current = false;
+      setWorking(false);
+    }
+  };
+  const changeTimezone = async (value: string) => {
+    if (isDemo) {
+      setTimezone(value);
+      return;
+    }
+    if (mutation.current) return;
+    mutation.current = true;
+    const current = epoch.current;
+    setWorking(true);
+    try {
+      const result = await appApi.profile({ timezone: value });
+      if (current !== epoch.current) return;
+      setUser(result.user);
+      setTimezone(result.user.timezone);
+    } catch {
+      setNotice(
+        "Couldn’t save the timezone. Your previous timezone is still selected.",
+      );
+    } finally {
+      mutation.current = false;
+      setWorking(false);
+    }
+  };
+  const changeReadback = (value: boolean) => {
+    setReadback(value);
+    try {
+      localStorage.setItem("argzel-readback", value ? "on" : "off");
+    } catch {}
   };
   const startRecording = () => {
     setVoiceRequest({ timezone });
     go("voice");
   };
-  const saveToDemo = (record: ApiReminder) => {
-    const reminder: Reminder = {
-      id: record.id,
-      title: record.title,
-      notes: record.notes,
-      date: record.date,
-      time: record.time,
-      timezone: record.timezone,
-      recurrence: record.recurrence,
-      status: record.status === "completed" ? "completed" : "scheduled",
-      source: record.source_text,
-    };
+  const saveToList = (record: ApiReminder) => {
+    const reminder = toReminder(record);
     setItems((previous) =>
       previous.some((item) => item.id === reminder.id)
         ? previous.map((item) => (item.id === reminder.id ? reminder : item))
@@ -111,6 +271,46 @@ export default function Experience() {
     setSelected(r);
     go("details");
   };
+  const mutateReminder = async (action: "delete" | "status") => {
+    const current = epoch.current;
+    if (mutation.current) return;
+    mutation.current = true;
+    setWorking(true);
+    setNotice("");
+    try {
+      if (action === "delete") {
+        if (!isDemo) await appApi.remove(selected.id);
+        if (current !== epoch.current) return;
+        setItems((previous) =>
+          previous.filter((item) => item.id !== selected.id),
+        );
+        go("reminders");
+      } else {
+        const status =
+          selected.status === "completed" ? "scheduled" : "completed";
+        const updated = isDemo
+          ? ({ ...selected, status } as Reminder)
+          : toReminder((await appApi.update(selected.id, { status })).reminder);
+        if (current !== epoch.current) return;
+        setItems((previous) =>
+          previous.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        setSelected(updated);
+      }
+    } catch (cause) {
+      setDeleting(false);
+      setNotice(
+        cause instanceof Error
+          ? cause.message
+          : "Couldn’t update the reminder. Please refresh before trying again.",
+      );
+    } finally {
+      mutation.current = false;
+      setWorking(false);
+    }
+  };
+  const displayName = isDemo ? "Alex Okafor" : (user?.name ?? "Your account");
+  const avatar = initials(displayName);
   const title = (text: string) => (
     <h1 ref={titleRef} tabIndex={-1}>
       {text}
@@ -123,7 +323,7 @@ export default function Experience() {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <aside className="sidebar">
+      <aside className="sidebar" inert={deleting}>
         <Brand />
         <div className="sidebar-label">YOUR PERSONAL SPACE</div>
         <nav aria-label="Main navigation">
@@ -165,15 +365,15 @@ export default function Experience() {
           </button>
         </div>
         <button className="profile" onClick={() => go("settings")}>
-          <span className="avatar">AO</span>
+          <span className="avatar">{avatar}</span>
           <span>
-            <strong>Alex Okafor</strong>
+            <strong>{displayName}</strong>
             <small>Personal workspace</small>
           </span>
           <MoreHorizontal size={18} />
         </button>
       </aside>
-      <div className="main-wrap">
+      <div className="main-wrap" inert={deleting}>
         <header className="topbar">
           <div className="mobile-brand">
             <Brand />
@@ -186,14 +386,19 @@ export default function Experience() {
           </span>
           <div className="topbar-right">
             <span className="demo-pill">
-              <span /> Interactive demo
+              <span />{" "}
+              {isDemo
+                ? "Interactive demo"
+                : user
+                  ? "Your account"
+                  : "Speak. Confirm. Remember."}
             </span>
             <button
               className="icon-button"
               aria-label="Open settings"
               onClick={() => go("settings")}
             >
-              <span className="avatar small">AO</span>
+              <span className="avatar small">{avatar}</span>
             </button>
           </div>
         </header>
@@ -220,11 +425,22 @@ export default function Experience() {
               screen={screen}
               title={title}
               items={items}
+              isDemo={isDemo}
+              name={displayName}
+              timezone={timezone}
+              loading={loading}
+              error={listError}
+              onRefresh={() => {
+                void loadReminders();
+              }}
               filter={filter}
               setFilter={setFilter}
               onCreate={startRecording}
               onOpen={openDetails}
-              onViewAll={() => go("reminders")}
+              onViewAll={() => {
+                go("reminders");
+                if (!isDemo) void loadReminders();
+              }}
             />
           )}
           {screen === "splash" && (
@@ -233,9 +449,6 @@ export default function Experience() {
               {title("A little less on your mind.")}
               <p>Speak it. Confirm it. Remember it.</p>
               <div className="loading-line" />
-              <Button variant="ghost" onClick={() => go("onboarding")}>
-                Welcome to your space <ArrowRight size={16} />
-              </Button>
             </div>
           )}
           {screen === "onboarding" && (
@@ -251,6 +464,8 @@ export default function Experience() {
               screen={screen}
               title={title}
               onNavigate={go}
+              onAuthenticated={authenticated}
+              onDemo={enterDemo}
               onNotice={setNotice}
             />
           )}
@@ -259,8 +474,12 @@ export default function Experience() {
               timezone={voiceRequest.timezone}
               initial={voiceRequest.initial}
               readback={readback}
-              onSaved={saveToDemo}
-              onCancel={() => go("home")}
+              service={isDemo ? mockVoiceService : apiVoiceService}
+              onSaved={saveToList}
+              onCancel={() => {
+                go("home");
+                if (!isDemo) void loadReminders();
+              }}
               onDetails={() => go("details")}
             />
           )}
@@ -308,18 +527,9 @@ export default function Experience() {
                 </Button>
                 <Button
                   variant="secondary"
+                  disabled={working}
                   onClick={() => {
-                    const updated = {
-                      ...selected,
-                      status:
-                        selected.status === "completed"
-                          ? "scheduled"
-                          : "completed",
-                    } as Reminder;
-                    setItems(
-                      items.map((r) => (r.id === selected.id ? updated : r)),
-                    );
-                    setSelected(updated);
+                    void mutateReminder("status");
                   }}
                 >
                   <CheckCheck size={16} />
@@ -329,6 +539,8 @@ export default function Experience() {
               <Button
                 variant="ghost"
                 className="danger full"
+                disabled={working}
+                ref={deleteTrigger}
                 onClick={() => setDeleting(true)}
               >
                 <Trash2 size={16} />
@@ -340,16 +552,23 @@ export default function Experience() {
             <SettingsScreen
               title={title}
               timezone={timezone}
-              onTimezone={setTimezone}
+              onTimezone={(value) => {
+                void changeTimezone(value);
+              }}
+              isDemo={isDemo}
+              user={user}
+              busy={working}
               emailEnabled={emailEnabled}
               onEmail={setEmailEnabled}
               readback={readback}
-              onReadback={setReadback}
+              onReadback={changeReadback}
               onReplay={() => {
                 setSlide(0);
                 go("onboarding");
               }}
-              onLeave={() => go("signin")}
+              onLeave={() => {
+                void leave();
+              }}
               onNotice={setNotice}
             />
           )}
@@ -361,7 +580,12 @@ export default function Experience() {
         />
       </div>
       {deleting && (
-        <div className="modal-backdrop" onClick={() => setDeleting(false)}>
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            if (!working) setDeleting(false);
+          }}
+        >
           <section
             role="dialog"
             aria-modal="true"
@@ -369,7 +593,7 @@ export default function Experience() {
             className="delete-modal"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
-              if (e.key === "Escape") setDeleting(false);
+              if (e.key === "Escape" && !working) setDeleting(false);
               if (e.key === "Tab") {
                 const controls =
                   e.currentTarget.querySelectorAll<HTMLButtonElement>("button");
@@ -387,20 +611,29 @@ export default function Experience() {
           >
             <Trash2 size={25} />
             <h2 id="delete-title">Let this one go?</h2>
-            <p>“{selected.title}” will be removed from this demo session.</p>
+            <p>
+              “{selected.title}” will be{" "}
+              {isDemo
+                ? "removed from this demo session"
+                : "permanently deleted from your account"}
+              .
+            </p>
             <Button
               autoFocus
+              disabled={working}
               variant="secondary"
               className="full"
-              onClick={() => setDeleting(false)}
+              onClick={() => {
+                if (!working) setDeleting(false);
+              }}
             >
               Keep reminder
             </Button>
             <Button
               className="full danger-solid"
+              disabled={working}
               onClick={() => {
-                setItems(items.filter((r) => r.id !== selected.id));
-                go("reminders");
+                void mutateReminder("delete");
               }}
             >
               Delete reminder
