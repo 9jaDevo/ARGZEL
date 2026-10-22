@@ -1,0 +1,50 @@
+# Render Blueprint for ARGZEL. In Render: New > Blueprint > select this repository.
+# Values marked `sync: false` are entered once in the Render dashboard (never committed).
+# Setup guide: docs/DEPLOYMENT.md
+services:
+  - type: web
+    name: argzel
+    runtime: node
+    plan: free
+    region: frankfurt # closest Render region to West Africa; ideally match your Atlas cluster region
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      # Database
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: argzel
+      # Sessions: a fresh production secret, separate from local development
+      - key: AUTH_SECRET
+        generateValue: true
+      # Voice: Gemma (Gemini API) and Whisper (Groq)
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMMA_MODEL
+        value: gemma-4-26b-a4b-it
+      - key: STT_API_KEY
+        sync: false
+      # Email
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: APP_URL
+        sync: false # e.g. https://argzel.onrender.com
+      # Scheduler: the cron caller sends this as a Bearer token
+      - key: CRON_SECRET
+        generateValue: true
+      # Monitoring (optional but recommended)
+      - key: NEXT_PUBLIC_SENTRY_DSN
+        sync: false
+      - key: SENTRY_AUTH_TOKEN # optional: readable stack traces via source map upload
+        sync: false
+      - key: SENTRY_ORG
+        sync: false
+      - key: SENTRY_PROJECT
+        sync: false

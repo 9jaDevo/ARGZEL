@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { z } from 'zod';
 import type { ApiErrorBody } from '@/types/api';
 
@@ -59,6 +60,7 @@ export function route<Args extends unknown[]>(handler: (...args: Args) => Promis
         return json(body, err.status);
       }
       console.error('[api] unhandled error:', err instanceof Error ? err.message : err);
+      Sentry.captureException(err);
       const body: ApiErrorBody = { error: { code: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' } };
       return json(body, 500);
     }

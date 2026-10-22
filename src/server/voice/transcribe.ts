@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { env } from '../env';
 import { ApiError } from '../http';
 
@@ -37,19 +38,29 @@ export async function transcribe(audio: Blob, extension: string): Promise<string
   form.append('response_format', 'json');
   form.append('temperature', '0');
 
-  const res = await fetch(env.sttApiUrl, {
-    method: 'POST',
-    headers: env.sttApiKey ? { authorization: `Bearer ${env.sttApiKey}` } : {},
-    body: form,
-    signal: AbortSignal.timeout(30_000),
-  }).catch((err: Error) => {
-    console.error('[stt] request failed:', err.message);
-    return null;
-  });
-  if (!res?.ok) {
-    if (res) console.error(`[stt] HTTP ${res.status}:`, (await res.text()).slice(0, 300));
-    throw new ApiError(502, 'STT_UNAVAILABLE', "I couldn't transcribe that right now. Please try again.");
-  }
-  const data = (await res.json()) as { text?: string };
-  return (data.text ?? '').trim();
+  return Sentry.startSpan(
+    { op: 'ai.speech_to_text', name: `transcribe ${env.sttModel}`, attributes: { 'stt.model': env.sttModel, 'stt.audio_bytes': audio.size, 'stt.format': extension } },
+    async (span) => {
+      const res = await fetch(env.sttApiUrl, {
+        method: 'POST',
+        headers: env.sttApiKey ? { authorization: `Bearer ${env.sttApiKey}` } : {},
+        body: form,
+        signal: AbortSignal.timeout(30_000),
+      }).catch((err: Error) => {
+        console.error('[stt] request failed:', err.message);
+        return null;
+      });
+      if (!res?.ok) {
+        if (res) console.error(`[stt] HTTP ${res.status}:`, (await res.text()).slice(0, 300));
+        const failure = res ? `http_${res.status}` : 'network';
+        span.setStatus({ code: 2, message: failure });
+        Sentry.captureMessage('Speech-to-text request failed', { level: 'error', tags: { provider: 'whisper', failure } });
+        throw new ApiError(502, 'STT_UNAVAILABLE', "I couldn't transcribe that right now. Please try again.");
+      }
+      const data = (await res.json()) as { text?: string };
+      const text = (data.text ?? '').trim();
+      span.setAttribute('stt.empty', text.length === 0);
+      return text;
+    },
+  );
 }

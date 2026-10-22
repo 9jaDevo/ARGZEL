@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { env } from '@/server/env';
 import { ApiError, json, route } from '@/server/http';
 import { dispatchDueReminders } from '@/server/scheduler/dispatch';
@@ -17,9 +18,20 @@ function authorize(req: Request) {
   }
 }
 
+// Sentry Cron Monitor: alerts when the every-minute trigger stops arriving or a run fails.
+const MONITOR_SLUG = 'argzel-reminder-dispatch';
+const MONITOR_CONFIG = {
+  schedule: { type: 'crontab' as const, value: '* * * * *' },
+  checkinMargin: 2,
+  maxRuntime: 2,
+  timezone: 'UTC',
+  failureIssueThreshold: 3,
+  recoveryThreshold: 1,
+};
+
 async function handle(req: Request) {
   authorize(req);
-  const summary = await dispatchDueReminders();
+  const summary = await Sentry.withMonitor(MONITOR_SLUG, () => dispatchDueReminders(), MONITOR_CONFIG);
   if (summary.claimed) console.log('[cron] dispatch', JSON.stringify(summary));
   return json({ summary });
 }

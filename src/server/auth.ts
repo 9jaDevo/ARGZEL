@@ -1,4 +1,5 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { env } from './env';
@@ -79,5 +80,6 @@ export async function getSessionUserId(): Promise<string | null> {
 export async function requireUserId() {
   const userId = await getSessionUserId();
   if (!userId) throw new ApiError(401, 'UNAUTHORIZED', 'Please sign in to continue');
+  Sentry.setUser({ id: userId }); // id only: no email or IP
   return userId;
 }

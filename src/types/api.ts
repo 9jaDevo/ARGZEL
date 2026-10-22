@@ -150,7 +150,7 @@ export type ParseResponse = { result: ParseResult };
 /**
  * Every non-2xx response has this shape. `code` is one of:
  * VALIDATION_ERROR, INVALID_JSON (400) · UNAUTHORIZED, INVALID_CREDENTIALS (401)
- * NOT_FOUND (404) · EMAIL_TAKEN (409) · NO_SPEECH (422) · INTERNAL_ERROR (500)
+ * NOT_FOUND (404) · EMAIL_TAKEN (409) · NO_SPEECH (422) · RATE_LIMITED (429) · INTERNAL_ERROR (500)
  * AI_UNAVAILABLE, STT_UNAVAILABLE (502: the Gemma / Whisper provider failed).
  * `fields` maps a field name to messages for VALIDATION_ERROR.
  */

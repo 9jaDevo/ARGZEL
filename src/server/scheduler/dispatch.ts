@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import type { HydratedDocument } from 'mongoose';
 import { connectDB } from '../db';
 import { reminderEmail } from '../email/reminder-email';
@@ -107,6 +108,11 @@ async function deliver(reminder: ReminderDoc, now: Date, send: DispatchOptions['
     // Give up on this occurrence. A repeating reminder still fires next time.
     update = repeating && user ? { ...free, scheduled_at: nextOccurrence() } : { ...free, status: 'failed' };
     outcome = 'failed';
+    Sentry.captureMessage('Reminder email not delivered', {
+      level: 'error',
+      tags: { permanent: String(result.permanent), recurrence: reminder.recurrence },
+      contexts: { reminder: { id: reminder.id, attempts: reminder.delivery_attempts, error: result.error } },
+    });
   } else {
     update = { locked_until: new Date(now.getTime() + RETRY_DELAYS_MS[reminder.delivery_attempts - 1]) };
     outcome = 'retrying';
@@ -131,7 +137,15 @@ export async function dispatchDueReminders(options: DispatchOptions = {}): Promi
     const reminder = await claimNext(at);
     if (!reminder) break;
     summary.claimed++;
-    summary[await deliver(reminder, at, send)]++;
+    const outcome = await Sentry.startSpan(
+      { op: 'reminder.deliver', name: 'deliver reminder email', attributes: { attempt: reminder.delivery_attempts, recurrence: reminder.recurrence } },
+      async (span) => {
+        const result = await deliver(reminder, at, send);
+        span.setAttribute('outcome', result);
+        return result;
+      },
+    );
+    summary[outcome]++;
   }
   return summary;
 }

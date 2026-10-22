@@ -24,6 +24,7 @@ src/
     voice/transcribe/route.ts POST (audio -> text, Whisper)
     voice/parse/route.ts      POST (text -> reminder preview, Gemma)
     cron/dispatch/route.ts    POST/GET (every-minute due-reminder run, CRON_SECRET)
+    health/route.ts           GET (Render health check: DB ping)
   server/                     server-only code (never import from client components)
     env.ts                    typed, lazy env access
     db.ts                     cached Mongoose connection
@@ -53,6 +54,9 @@ src/
 | `EMAIL_FROM` | no | Default `ARGZEL <onboarding@resend.dev>`, which only reaches your own Resend account email. Verify a domain to email anyone. |
 | `APP_URL` | production | Public URL for links in emails. |
 | `CRON_SECRET` | for the scheduler | Bearer token for `/api/cron/dispatch`, at least 16 characters. |
+| `NEXT_PUBLIC_SENTRY_DSN` | no | Turns on Sentry. Optional `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` enable source maps. See `docs/DEPLOYMENT.md`. |
+
+`npm run check:env` validates a file (default `.env.production`) without printing values. The same check logs `[env]` lines at server start.
 
 Variables are read when a request needs them, so `next build` works without them. A missing variable makes that request return `500 INTERNAL_ERROR` and logs the variable name on the server. None of these use the `NEXT_PUBLIC_` prefix, so none reach the browser.
 
@@ -88,7 +92,7 @@ Indexes: `{user_id, scheduled_at}` for the dashboard and `{status, scheduled_at}
   { "error": { "code": "VALIDATION_ERROR", "message": "Some fields are invalid",
                "fields": { "email": ["Enter a valid email address"], "password": ["Password must be at least 8 characters"] } } }
   ```
-  Codes: `VALIDATION_ERROR`, `INVALID_JSON` (400) · `UNAUTHORIZED`, `INVALID_CREDENTIALS` (401) · `NOT_FOUND` (404) · `EMAIL_TAKEN` (409) · `INTERNAL_ERROR` (500).
+  Codes: `VALIDATION_ERROR`, `INVALID_JSON` (400) · `UNAUTHORIZED`, `INVALID_CREDENTIALS` (401) · `NOT_FOUND` (404) · `EMAIL_TAKEN` (409) · `NO_SPEECH` (422) · `RATE_LIMITED` (429) · `INTERNAL_ERROR` (500) · `AI_UNAVAILABLE`, `STT_UNAVAILABLE` (502).
 - Unknown body fields are ignored, so sending a whole reminder object back on PATCH is safe.
 - A reminder that does not exist, or belongs to someone else, is a `404`.
 - TypeScript types for every body and response are in `src/types/api.ts` (import with `import type`).
@@ -196,8 +200,8 @@ Phase 5 was verified end to end against a running dev server and a local MongoDB
 
 ## Known limitations / next phases
 
-- No rate limiting on sign-in or sign-up. Add it before a public launch (Phase 8).
+- Rate limits are in memory, so they apply per instance (fine for one Render instance). Limits are in `docs/DEPLOYMENT.md`.
 - Sessions are stateless: sign-out clears the cookie, but a copied token stays valid until it expires. Rotating `AUTH_SECRET` invalidates every session.
 - No password reset (the spec allows a placeholder link).
 - Scheduling and email (Phase 7): see `docs/SCHEDULING.md`. Known limits: monthly reminders on the 29th–31st drift to the last day of short months, and delivery is accurate to about a minute.
-- The voice endpoints (Phase 6) call paid/free-tier providers and are behind sign-in, but are not rate-limited yet (Phase 8).
+- No email verification at sign-up, so anyone can register any address and schedule reminders to it. Sign-up is rate-limited, but verification is the real fix.

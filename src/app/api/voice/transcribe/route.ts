@@ -1,11 +1,13 @@
 import { requireUserId } from '@/server/auth';
 import { ApiError, json, route, validationError } from '@/server/http';
+import { LIMITS, rateLimit } from '@/server/rate-limit';
 import { MAX_AUDIO_BYTES, audioExtension, transcribe } from '@/server/voice/transcribe';
 import type { TranscribeResponse } from '@/types/api';
 
 /** multipart/form-data with an `audio` file (a MediaRecorder blob) -> { text }. */
 export const POST = route(async (req: Request) => {
-  await requireUserId();
+  const userId = await requireUserId();
+  rateLimit(`transcribe:${userId}`, ...LIMITS.voicePerUser);
   let form: FormData;
   try {
     form = await req.formData();

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import type { ParseResult } from '@/types/api';
 import { addDays, utcToZoned, weekdayIndex } from '../time';
 import { WEEKDAYS, parseExtraction, type Extraction } from './extraction';
@@ -65,15 +66,46 @@ export function buildUserPrompt({ text, clarification, timezone, now }: ParseReq
   return lines.join('\n');
 }
 
+/**
+ * Traced as a Sentry agent run (`gen_ai.invoke_agent`) containing the Gemma
+ * call(s) and the deterministic resolution, tagged with the outcome so the
+ * clarification rate and its reasons are visible in Sentry.
+ */
 export async function parseReminder(request: ParseRequest): Promise<ParseResult> {
-  const prompt = buildUserPrompt(request);
-  let extraction: Extraction | null = null;
-  // One retry covers the occasional reply that is not valid JSON.
-  for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
-    extraction = parseExtraction(await generate(SYSTEM_PROMPT, prompt));
-  }
-  if (!extraction) throw aiUnavailable();
+  return Sentry.startSpan(
+    {
+      op: 'gen_ai.invoke_agent',
+      name: 'invoke_agent reminder-parser',
+      attributes: {
+        'gen_ai.operation.name': 'invoke_agent',
+        'gen_ai.agent.name': 'reminder-parser',
+        'argzel.clarification_round': Boolean(request.clarification),
+      },
+    },
+    async (span) => {
+      const prompt = buildUserPrompt(request);
+      let extraction: Extraction | null = null;
+      // One retry covers the occasional reply that is not valid JSON.
+      for (let attempt = 0; attempt < 2 && !extraction; attempt++) {
+        extraction = parseExtraction(await generate(SYSTEM_PROMPT, prompt));
+      }
+      if (!extraction) {
+        Sentry.captureMessage('Gemma reply was not valid JSON twice', { level: 'error', tags: { provider: 'gemini' } });
+        throw aiUnavailable();
+      }
 
-  const sourceText = request.clarification ? `${request.text} — ${request.clarification.answer}` : request.text;
-  return resolveReminder(extraction, { now: request.now, timezone: request.timezone, sourceText });
+      const sourceText = request.clarification ? `${request.text} — ${request.clarification.answer}` : request.text;
+      const resolved = extraction;
+      const result = Sentry.startSpan({ op: 'function', name: 'resolve reminder dates' }, () =>
+        resolveReminder(resolved, { now: request.now, timezone: request.timezone, sourceText }),
+      );
+      span.setAttributes({
+        'argzel.needs_clarification': result.needs_clarification,
+        'argzel.ambiguities': result.ambiguities.join(',') || 'none',
+        'argzel.confidence': result.confidence,
+        'argzel.recurrence': result.recurrence,
+      });
+      return result;
+    },
+  );
 }

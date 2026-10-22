@@ -2,6 +2,7 @@ import { requireUserId } from '@/server/auth';
 import { connectDB } from '@/server/db';
 import { ApiError, json, readJson, route } from '@/server/http';
 import { User } from '@/server/models/User';
+import { LIMITS, rateLimit } from '@/server/rate-limit';
 import { parseInputSchema } from '@/server/validation';
 import { parseReminder } from '@/server/voice/parse';
 import type { ParseResponse } from '@/types/api';
@@ -12,6 +13,7 @@ import type { ParseResponse } from '@/types/api';
  */
 export const POST = route(async (req: Request) => {
   const userId = await requireUserId();
+  rateLimit(`parse:${userId}`, ...LIMITS.voicePerUser);
   const input = await readJson(req, parseInputSchema);
 
   let timezone = input.timezone;

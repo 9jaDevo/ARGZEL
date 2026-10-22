@@ -34,7 +34,8 @@ ARGZEL is a mobile-first voice reminder app. Say what you need to remember in pl
 | Email | Resend |
 | Auth | Email + password (scrypt) with a signed httpOnly session cookie |
 | Validation / tests | Zod, Vitest |
-| Hosting | Render |
+| Hosting | Render (Blueprint in `render.yaml`) |
+| Monitoring | Sentry: errors, Gemma agent traces (`gen_ai` spans), and a cron monitor for the scheduler |
 
 ## Project status
 
@@ -45,7 +46,8 @@ ARGZEL is a mobile-first voice reminder app. Say what you need to remember in pl
 | Scheduler and email delivery | Done, real email delivered via Resend |
 | Mobile UI: all screens, onboarding, voice flow | Done, **currently runs in demo mode** |
 | Connecting the UI to the live API (sign-in, microphone, reminder list) | In progress |
-| Deployment on Render, monitoring | Planned |
+| Production readiness: Sentry, env checks, health check, rate limits | Done; production build verified end to end against Atlas |
+| Public deployment on Render | Ready to deploy (Blueprint + guide); waiting on the owner's Render setup |
 
 The app you see at `localhost:3000` is a self-contained demo: sample data, stubbed sign-in, simulated voice. It needs no credentials. The real API is fully usable today, and the frontend already includes a typed live adapter (`src/lib/voice-service.ts`) that switches over once wiring is finished.
 
@@ -76,6 +78,7 @@ cp .env.example .env.local
 | `STT_API_KEY` (+ optional `STT_API_URL`, `STT_MODEL`) | Speech-to-text (Whisper) |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` | Reminder emails |
 | `CRON_SECRET` | The every-minute scheduler call |
+| `NEXT_PUBLIC_SENTRY_DSN` (optional) | Error and performance monitoring |
 
 Each variable is only needed by the feature that uses it, and the demo UI needs none. `.env.example` explains each one and where to get the keys. To deliver due reminders locally, run `npm run cron:dev` alongside `npm run dev`.
 
@@ -88,6 +91,8 @@ Each variable is only needed by the feature that uses it, and the demo UI needs 
 | `npm test` | Unit and integration tests (scheduler tests use a local MongoDB if one is running, and skip otherwise) |
 | `npm run test:live` | Checks Gemma against the real API with 15 sample phrases (uses API quota) |
 | `npm run cron:dev` | Calls the reminder dispatcher every minute, locally |
+| `npm run check:env` | Validates `.env.production` (or a given file) without printing values |
+| `BASE=<url> npm run smoke` | 17-check smoke test of a running deployment (sends no email) |
 | `npm run lint` / `npm run typecheck` | ESLint and TypeScript |
 
 ## API at a glance
@@ -126,6 +131,7 @@ scripts/          local helpers (cron:dev)
 - [Backend: architecture, data model, API reference](docs/BACKEND.md)
 - [Voice parsing: pipeline, clarification rules, assumptions, test cases](docs/VOICE_PARSING.md)
 - [Scheduling and email: status flow, duplicate prevention, setup, test checklist](docs/SCHEDULING.md)
+- [Deployment and operations: Render, cron, Sentry, verification](docs/DEPLOYMENT.md)
 - [Voice experience: UI flow and frontend integration](docs/VOICE_UX.md)
 - [Design system: brand, palette, typography, components](docs/DESIGN_SYSTEM.md)
 
@@ -138,3 +144,5 @@ The brand identity board is at `/brand` when the app is running.
 - **Passwords are hashed with scrypt.** Sessions are httpOnly, SameSite cookies.
 - **Secrets live only in environment variables.** `.env*` files are git-ignored, except the template.
 - **Logs record delivery outcomes only.** Notification logs never contain email content, and addresses in provider errors are redacted.
+- **Monitoring collects no personal data.** Sentry gets no request bodies, cookies or AI prompts; users appear as account ids only.
+- **Abuse limits.** Sign-in, sign-up and the voice endpoints are rate-limited.
