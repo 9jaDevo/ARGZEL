@@ -35,3 +35,6 @@ CLAUDE.md
 /docs/evidence/
 /docs/screenshots/atlas-*.jpg
 .next-verify/
+
+# Sentry Config File
+.env.sentry-build-plugin

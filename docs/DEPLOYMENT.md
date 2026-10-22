@@ -13,6 +13,7 @@ cron-job.org (or Render Cron)            │              └─ Resend (email)
 ```
 
 `render.yaml` (Render Blueprint) describes the web service:
+
 - build `npm install && npm run build` (not `npm ci`: see the comment in `render.yaml`), start `npm start`;
 - Node 24, Frankfurt region;
 - health check `/api/health`, which returns 200 only when MongoDB answers;
@@ -59,12 +60,14 @@ A side benefit: the every-minute call keeps the free web service from sleeping, 
 
 What you'll see in Sentry:
 
-| Where | What |
-| --- | --- |
-| Issues | Unhandled API and page errors, plus four specific failures: Gemma request failed, Gemma reply not valid JSON, speech-to-text failed, and a reminder email that could not be delivered after all retries. Provider failures are tagged with provider and failure type |
+| Where                  | What                                                                                                                                                                                                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issues                 | Unhandled API and page errors, plus four specific failures: Gemma request failed, Gemma reply not valid JSON, speech-to-text failed, and a reminder email that could not be delivered after all retries. Provider failures are tagged with provider and failure type        |
 | Insights → AI / Agents | Each voice parse as an `invoke_agent reminder-parser` run containing the `chat gemma-4-26b-a4b-it` call(s), with model, token usage, finish reason and retry attempts. The run is tagged with the outcome: `needs_clarification`, `ambiguities`, `confidence`, `recurrence` |
-| Traces | API requests, plus `ai.speech_to_text` (Whisper) and `reminder.deliver` spans with their outcome |
-| Crons | Monitor `argzel-reminder-dispatch`, created automatically on the first check-in. It alerts after 3 missed or failed runs |
+| Traces                 | API requests, plus `ai.speech_to_text` (Whisper) and `reminder.deliver` spans with their outcome                                                                                                                                                                            |
+| Crons                  | Monitor `argzel-reminder-dispatch`, created automatically on the first check-in. It alerts after 3 missed or failed runs                                                                                                                                                    |
+
+**Ad blockers:** browser events go to the app's own `/monitoring` route, which forwards them to Sentry, so ad blockers don't drop them. Locally, the Sentry wizard's git-ignored `.env.sentry-build-plugin` holds the auth token for source-map uploads.
 
 **Privacy:** request bodies, cookies, auto-collected user data, database query data, stack-frame variables and AI prompt/response content are all disabled (`src/sentry.privacy.ts`). Users are identified by account id only, so transcripts, reminder text and emails never reach Sentry.
 
@@ -77,6 +80,7 @@ BASE=https://argzel.onrender.com CRON_SECRET_PROD=<render CRON_SECRET> npm run s
 ```
 
 This runs 17 checks and sends no email:
+
 - health and the database;
 - sign up, sign out, sign in, with Secure, HttpOnly cookies;
 - the profile and the confirmation guard;
@@ -87,16 +91,22 @@ This runs 17 checks and sends no email:
 
 Each run leaves one `smoke-<timestamp>@example.com` account behind, which can be deleted in Atlas. For the email path, create a reminder due in 2 minutes and watch it arrive. The cron must already be running.
 
+## Live status (22 Oct 2026)
+
+- **URL:** https://argzel.onrender.com, deployed from commit `51dcbf0`.
+- **Smoke test:** 17/17 checks pass against the live URL.
+- **Email:** a real reminder email was sent by the production dispatcher and delivered via Resend.
+
 ## Operations
 
 - **Rate limits** (in memory, per instance; 429 `RATE_LIMITED`):
 
-  | Action | Limit |
-  | --- | --- |
-  | Sign-up | 10 / 15 min per IP |
-  | Sign-in | 30 / 5 min per IP, plus 10 / 15 min per account |
-  | Transcribe | 30 / 5 min per user |
-  | Parse | 30 / 5 min per user |
+  | Action     | Limit                                           |
+  | ---------- | ----------------------------------------------- |
+  | Sign-up    | 10 / 15 min per IP                              |
+  | Sign-in    | 30 / 5 min per IP, plus 10 / 15 min per account |
+  | Transcribe | 30 / 5 min per user                             |
+  | Parse      | 30 / 5 min per user                             |
 
 - **Health:** `/api/health` returns 200 or 503, plus the short commit id. Render restarts the service and holds back bad deploys based on it.
 - **Rolling back:** in Render → Deploys, pick an earlier deploy and choose **Rollback**.
