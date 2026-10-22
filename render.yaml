@@ -7,7 +7,10 @@ services:
     runtime: node
     plan: free
     region: frankfurt # closest Render region to West Africa; ideally match your Atlas cluster region
-    buildCommand: npm ci && npm run build
+    # `npm install` (not `npm ci`): a lockfile written on Windows can omit Linux/WASM-only
+    # optional packages, which makes `npm ci` fail on Render. Versions stay pinned by the
+    # lockfile and the caret ranges in package.json.
+    buildCommand: npm install --no-audit --no-fund && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true

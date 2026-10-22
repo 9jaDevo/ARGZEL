@@ -13,7 +13,7 @@ cron-job.org (or Render Cron)            │              └─ Resend (email)
 ```
 
 `render.yaml` (Render Blueprint) describes the web service:
-- build `npm ci && npm run build`, start `npm start`;
+- build `npm install && npm run build` (not `npm ci`: see the comment in `render.yaml`), start `npm start`;
 - Node 24, Frankfurt region;
 - health check `/api/health`, which returns 200 only when MongoDB answers;
 - auto-deploy on every push to `main`.
