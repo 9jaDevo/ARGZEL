@@ -43,7 +43,7 @@ export default function Experience() {
   const [screen, setScreen] = useState<Screen>("splash");
   const [slide, setSlide] = useState(0);
   const [items, setItems] = useState<Reminder[]>([]);
-  const [selected, setSelected] = useState<Reminder>(demoReminders[0]);
+  const [selected, setSelected] = useState<Reminder>(() => demoReminders()[0]);
   const [user, setUser] = useState<ApiUser | null>(null);
   const [isDemo, setDemo] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -94,7 +94,7 @@ export default function Experience() {
         epoch.current++;
         setItems([]);
         setUser(null);
-        setSelected(demoReminders[0]);
+        setSelected(demoReminders()[0]);
         setScreen("signin");
         setNotice("Your session ended. Please sign in again.");
       } else
@@ -165,7 +165,7 @@ export default function Experience() {
     listRequest.current?.abort();
     setDemo(false);
     setItems([]);
-    setSelected(demoReminders[0]);
+    setSelected(demoReminders()[0]);
     setUser(profile);
     setTimezone(profile.timezone);
     setFilter("Upcoming");
@@ -191,8 +191,8 @@ export default function Experience() {
     listRequest.current?.abort();
     setUser(null);
     setDemo(true);
-    setItems(demoReminders);
-    setSelected(demoReminders[0]);
+    setItems(demoReminders());
+    setSelected(demoReminders()[0]);
     setTimezone("Africa/Lagos");
     setEmailEnabled(true);
     setFilter("Upcoming");
@@ -211,7 +211,7 @@ export default function Experience() {
       setUser(null);
       setDemo(false);
       setItems([]);
-      setSelected(demoReminders[0]);
+      setSelected(demoReminders()[0]);
       setVoiceRequest(null);
       setLoading(false);
       setListError("");

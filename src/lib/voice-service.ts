@@ -17,6 +17,7 @@ import {
   utcToZoned,
   zonedToUtc,
 } from "@/server/time";
+import { displayTime } from "./demo";
 
 export type VoiceSample = "hosting" | "call";
 export const voiceSamples: Record<VoiceSample, string> = {
@@ -152,37 +153,43 @@ export function createMockVoiceService({
           "DEMO_PHRASE",
         );
       const title = isCall ? "Call James" : "Renew website hosting";
-      const base: ParseResult = {
+      // Mirrors the real parser: "tomorrow morning" asks for a time and offers
+      // morning slots, each option carrying its fully resolved result.
+      const question = "What time tomorrow morning?";
+      const build = (time: string | null): ParseResult => ({
         title,
         notes: "",
         source_text: input.text,
         timezone,
         recurrence: "none",
-        scheduled_at: null,
-        date,
-        time: isCall ? null : "10:00",
-        confidence: isCall ? 0.5 : 0.97,
-        needs_clarification: isCall,
-        clarification_question: isCall
-          ? "What time tomorrow should I remind you?"
+        scheduled_at: time
+          ? zonedToUtc(date, time, timezone).toISOString()
           : null,
-        ambiguities: isCall ? ["missing_time"] : [],
-        options: [],
+        date,
+        time,
+        confidence: time ? 0.97 : 0.5,
+        needs_clarification: !time,
+        clarification_question: time ? null : question,
+        ambiguities: time ? [] : ["vague_time"],
+        options: time
+          ? []
+          : ["08:00", "09:00", "10:00"].map((slot) => ({
+              label: displayTime(slot),
+              result: build(slot),
+            })),
         preview: {
           title,
           day_label: "Tomorrow",
-          time_label: isCall ? null : "10:00 AM",
+          time_label: time ? displayTime(time) : null,
           recurrence_label: "Does not repeat",
           channel_label: "Email",
-          summary: title,
-          speech: isCall
-            ? "What time tomorrow should I remind you?"
-            : `Remind you to ${title.toLowerCase()} tomorrow at 10 AM. Does that sound right?`,
+          summary: time ? `${title} · tomorrow at ${displayTime(time)}` : title,
+          speech: time
+            ? `Remind you to ${title.toLowerCase()} tomorrow at ${displayTime(time).replace(":00 ", " ")}. Does that sound right?`
+            : question,
         },
-      };
-      if (!isCall)
-        base.scheduled_at = zonedToUtc(date, "10:00", timezone).toISOString();
-      return base;
+      });
+      return build(isCall ? null : "10:00");
     },
     async save(input, { signal, reminderId, status }) {
       // The same confirmation flag is required by the actual reminder endpoint.

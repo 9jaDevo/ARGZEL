@@ -69,7 +69,7 @@ export function AuthScreen({
             setError(
               cause instanceof ClientError
                 ? cause.message
-                : "Couldn�t connect. Please try again.",
+                : "Couldn’t connect. Please try again.",
             );
           } finally {
             lock.current = false;
@@ -145,7 +145,7 @@ export function AuthScreen({
             </button>
           )}
           <Button type="submit" className="full">
-            {busy ? "Connecting�" : signingIn ? "Sign in" : "Create account"}
+            {busy ? "Connecting…" : signingIn ? "Sign in" : "Create account"}
             <ArrowRight size={17} aria-hidden="true" />
           </Button>
         </fieldset>

@@ -46,6 +46,29 @@ describe("voice preview boundary", () => {
     });
     expect(input).not.toHaveProperty("scheduled_at");
   });
+  it("offers the same ready-made answers as the real parser for 'tomorrow morning'", async () => {
+    const result = await service().parse(
+      { text: voiceSamples.call, timezone: "Africa/Lagos" },
+      signal(),
+    );
+    expect(result).toMatchObject({
+      clarification_question: "What time tomorrow morning?",
+      ambiguities: ["vague_time"],
+      date: "2070-01-02",
+    });
+    expect(result.options.map((o) => o.label)).toEqual([
+      "8:00 AM",
+      "9:00 AM",
+      "10:00 AM",
+    ]);
+    expect(result.options[1].result).toMatchObject({
+      needs_clarification: false,
+      date: "2070-01-02",
+      time: "09:00",
+      scheduled_at: "2070-01-02T08:00:00.000Z",
+    });
+    expect(() => createInput(draftFromParse(result.options[1].result))).not.toThrow();
+  });
   it("does not guess a result for an arbitrary phrase in the mock adapter", async () => {
     await expect(
       service().parse(

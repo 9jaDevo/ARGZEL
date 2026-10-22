@@ -47,14 +47,14 @@ export function Dashboard({
     (r) =>
       r.status === (filter === "Upcoming" ? "scheduled" : filter.toLowerCase()),
   );
-  const dayLabel = isDemo
-    ? "WEDNESDAY, OCTOBER 21 · DEMO DAY"
-    : new Intl.DateTimeFormat("en-GB", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        timeZone: timezone,
-      }).format(new Date());
+  const today = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: timezone,
+  }).format(new Date());
+  // The demo's sample reminders are dated from today, so the demo shows today too.
+  const dayLabel = isDemo ? `${today} · DEMO DAY` : today;
   return (
     <>
       <div className="page-heading">
