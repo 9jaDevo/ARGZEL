@@ -1,0 +1,36 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment and secrets: only the template is public
+.env*
+!.env.example
+*.pem
+*.key
+
+# Logs and OS / editor clutter
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local AI-agent settings and instructions
+.claude/
+AGENTS.md
+CLAUDE.md
+
+# Private working documents (kept locally, not published)
+/01_ARGZEL_MASTER_SPEC.md
+/02_ARGZEL_TRACKER.md
+/03_ARGZEL_CODEX_CLAUDE_PROMPTS.md
+/docs/ATLAS_SETUP.md
+/docs/FRONTEND_QA.md
+/docs/evidence/
+/docs/screenshots/atlas-*.jpg
